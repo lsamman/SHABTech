@@ -16,6 +16,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 Image.MAX_IMAGE_PIXELS = None
 OUT = os.environ.get('SHAB_TEX', os.path.join(os.path.dirname(__file__), '..', 'build', 'tex'))
+# Hull sheets that get the Bluedog-style look pass (scripts/bdb_look.py) in Canvas.save(); the
+# one list of them. Not chute, window, wiremesh, iva, ivaglass, lamp_emit. Normals stay as painted.
+HULL = ('shab_fib', 'shab_mmod', 'shab_lander', 'shab_hiad', 'shab_isru', 'shab_rover', 'shab_sm',
+        'shab_surface', 'shab_tps', 'shab_details', 'shab_fan')
+UVDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'build', 'uvdump.json')   # bdb_look.py --dump-uv
 PNG = os.path.join(OUT, '_png')
 FONT_BOLD = None
 for p in ('/usr/share/fonts/TTF/DejaVuSansCondensed-Bold.ttf', '/usr/share/fonts/dejavu/DejaVuSansCondensed-Bold.ttf',
@@ -232,15 +237,32 @@ class Canvas:
         rgb = np.clip(self.albedo, 0, 1)
         if target_p90:
             rgb = np.clip(rgb * (target_p90 / np.percentile(rgb.mean(-1), 90)), 0, 1)
+        nx, ny = self.normal(nstrength)
+        if name in HULL:
+            rgb = bdb_pass(name, rgb, nx, ny)
         diff = np.dstack([rgb, np.clip(self.gloss, 0, 1)])
         write_dds((diff * 255 + .5).astype(np.uint8), f'{name}_diff')
-        nx, ny = self.normal(nstrength)
         n = np.empty((self.h, self.w, 4), np.float32)
         n[..., 0] = 1; n[..., 1] = ny * .5 + .5; n[..., 2] = n[..., 1]; n[..., 3] = nx * .5 + .5
         write_dds((n * 255 + .5).astype(np.uint8), f'{name}_nrm')
         nz = np.sqrt(np.clip(1 - nx * nx - ny * ny, 0, 1))
         Image.fromarray((np.dstack([nx * .5 + .5, ny * .5 + .5, nz]) * 255).astype(np.uint8)).save(os.path.join(PNG, f'{name}_nrm_view.png'))
         print(f'{name}: p50 {np.percentile(rgb.mean(-1), 50):.2f} p90 {np.percentile(rgb.mean(-1), 90):.2f} gloss {self.gloss.mean():.2f}')
+
+
+def bdb_pass(name, rgb, nx, ny):
+    """bdb_look.look() on a hull sheet, as `bdb_look.py --wrap --uvdump --measure-cover` does to the DDS."""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import bdb_look
+    cover = None
+    if os.path.exists(UVDUMP) and rgb.shape[0] == rgb.shape[1]:
+        cover = bdb_look.coverage_mask(UVDUMP, name, rgb.shape[0])
+    if cover is None:
+        print(f'{name}: no UV coverage in {UVDUMP}; look pass measures the whole sheet')
+    out, info = bdb_look.look(rgb.astype(np.float32), nx, ny, cover, wrap=True, measure_cover=cover is not None)
+    print(f'{name}: look pass, relief kept {info["g"]:.2f}, contact {info["contact"]:.2f}, crease {info["crease"]:.3f}')
+    return out
 
 
 def write_dds(arr, name):

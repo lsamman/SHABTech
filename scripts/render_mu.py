@@ -1,5 +1,6 @@
 """Render one or more KSP .mu files with their real textures in Cycles CPU.
-usage: blender -b -P render_mu.py -- out.png --res 1100x800 --view az,el,dist[,tx,ty,tz] file1.mu[@x,y,z[,yawdeg]] ...
+usage: blender -b -P render_mu.py -- out.png --res 1100x800 --view az,el,dist[,tx,ty,tz] [--noshadow] file1.mu[@x,y,z[,yawdeg]] ...
+--noshadow: no sun shadows (GatewayTech meshes carry reversed face copies that catch Cycles shadow rays)
 KSP-like lighting: one hard sun plus dim ambient, specular via principled.
 """
 import bpy, sys, os, math, addon_utils
@@ -7,7 +8,7 @@ from mathutils import Vector
 addon_utils.enable('io_object_mu', default_set=True)
 a = sys.argv[sys.argv.index('--') + 1:]
 out = a[0]; a = a[1:]
-res = (1100, 800); view = None; files = []; hide = []; anim = {}; samples = 48; sun = (35, 40)
+res = (1100, 800); view = None; files = []; hide = []; anim = {}; samples = 48; sun = (35, 40); noshadow = False
 i = 0
 while i < len(a):
     if a[i] == '--res': res = tuple(int(v) for v in a[i + 1].split('x')); i += 2
@@ -16,6 +17,7 @@ while i < len(a):
     elif a[i] == '--samples': samples = int(a[i + 1]); i += 2
     elif a[i] == '--sun': sun = tuple(float(v) for v in a[i + 1].split(',')); i += 2
     elif a[i] == '--anim': anim[a[i + 1].split('=')[0]] = float(a[i + 1].split('=')[1]); i += 2
+    elif a[i] == '--noshadow': noshadow = True; i += 1
     else: files.append(a[i]); i += 1
 sc = bpy.context.scene
 for o in list(bpy.data.objects): bpy.data.objects.remove(o)
@@ -28,6 +30,7 @@ def load_tex(dirn, name):
             if os.path.exists(p):
                 if p not in imgs:
                     imgs[p] = bpy.data.images.load(p)
+                    imgs[p].alpha_mode = 'CHANNEL_PACKED'   # alpha is gloss, not transparency
                 return imgs[p], ext
     print('NOTEX', name)
     return None, None
@@ -143,7 +146,7 @@ sc.cycles.max_bounces = 3
 sc.render.resolution_x, sc.render.resolution_y = res
 w = bpy.data.worlds.new('w'); sc.world = w; w.use_nodes = True
 w.node_tree.nodes['Background'].inputs[0].default_value = (.02, .025, .03, 1); w.node_tree.nodes['Background'].inputs[1].default_value = 1.0
-sd = bpy.data.lights.new('s', 'SUN'); sd.energy = 5.5; sd.angle = math.radians(1.5)
+sd = bpy.data.lights.new('s', 'SUN'); sd.energy = 5.5; sd.angle = math.radians(1.5); sd.use_shadow = not noshadow
 so = bpy.data.objects.new('s', sd); sc.collection.objects.link(so)
 so.rotation_euler = (math.radians(90 - sun[1]), 0, math.radians(sun[0] + 90))
 fd = bpy.data.lights.new('f', 'SUN'); fd.energy = .8; fo = bpy.data.objects.new('f', fd); sc.collection.objects.link(fo)

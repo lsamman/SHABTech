@@ -19,7 +19,8 @@ OUT = os.environ.get('SHAB_TEX', os.path.join(os.path.dirname(__file__), '..', '
 PNG = os.path.join(OUT, '_png')
 FONT_BOLD = None
 for p in ('/usr/share/fonts/TTF/DejaVuSansCondensed-Bold.ttf', '/usr/share/fonts/dejavu/DejaVuSansCondensed-Bold.ttf',
-          '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf', '/usr/share/fonts/liberation/LiberationSans-Bold.ttf',
+          '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+          '/usr/share/fonts/liberation/LiberationSans-Bold.ttf',
           '/usr/share/fonts/noto/NotoSans-Bold.ttf'):
     if os.path.exists(p):
         FONT_BOLD = p; break

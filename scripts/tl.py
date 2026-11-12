@@ -19,7 +19,7 @@ OUT = os.environ.get('SHAB_TEX', os.path.join(os.path.dirname(__file__), '..', '
 # Hull sheets that get the Bluedog-style look pass (scripts/bdb_look.py) in Canvas.save(); the
 # one list of them. Not chute, window, wiremesh, iva, ivaglass, lamp_emit. Normals stay as painted.
 HULL = ('shab_fib', 'shab_mmod', 'shab_lander', 'shab_hiad', 'shab_isru', 'shab_rover', 'shab_sm',
-        'shab_surface', 'shab_tps', 'shab_details', 'shab_fan')
+        'shab_surface', 'shab_tps', 'shab_details', 'shab_fan', 'shab_mech')
 UVDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'build', 'uvdump.json')   # bdb_look.py --dump-uv
 PNG = os.path.join(OUT, '_png')
 FONT_BOLD = None

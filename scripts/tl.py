@@ -266,13 +266,31 @@ def bdb_pass(name, rgb, nx, ny):
     return out
 
 
-def write_dds(arr, name):
+# Sheets whose alpha is real transparency: they keep alpha-weighted (magick) mips.
+TRANSPARENT = ('shab_wiremesh_diff', 'shab_ivaglass_diff')
+
+
+def write_dds(arr, name, transparent=None):
+    """RGBA uint8 -> OUT/<name>.dds via bdb_look.write_dds: flipped, full straight (non-alpha-weighted)
+    mip chain, gutters padded when build/uvdump.json has a coverage mask for the sheet.
+    transparent=True (default for TRANSPARENT sheets) keeps the old magick encode."""
+    if transparent is None:
+        transparent = name in TRANSPARENT
     os.makedirs(PNG, exist_ok=True)
-    png = os.path.join(PNG, name + '.png')
-    Image.fromarray(arr, 'RGBA').save(png, compress_level=1)
-    subprocess.run(['magick', png, '-flip', '-define', 'dds:compression=dxt5', '-define', 'dds:cluster-fit=false',
-                    '-define', 'dds:mipmaps=fromlist' if False else 'dds:weight-by-alpha=false',
-                    os.path.join(OUT, name + '.dds')], check=True)
+    if transparent:
+        png = os.path.join(PNG, name + '.png')
+        Image.fromarray(arr, 'RGBA').save(png, compress_level=1)
+        subprocess.run(['magick', png, '-flip', '-define', 'dds:compression=dxt5', '-define', 'dds:cluster-fit=false',
+                        '-define', 'dds:weight-by-alpha=false', os.path.join(OUT, name + '.dds')], check=True)
+        return
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import bdb_look
+    cover = None
+    key = name.rsplit('_', 1)[0] if name.endswith(('_diff', '_nrm')) else name
+    if os.path.exists(UVDUMP) and arr.shape[0] == arr.shape[1]:
+        cover = bdb_look.coverage_mask(UVDUMP, key, arr.shape[0])
+    bdb_look.write_dds(arr, os.path.join(OUT, name + '.dds'), cover)
 
 
 def write_emissive(arr, name):

@@ -146,10 +146,10 @@ sc.cycles.max_bounces = 3
 sc.render.resolution_x, sc.render.resolution_y = res
 w = bpy.data.worlds.new('w'); sc.world = w; w.use_nodes = True
 w.node_tree.nodes['Background'].inputs[0].default_value = (.02, .025, .03, 1); w.node_tree.nodes['Background'].inputs[1].default_value = 1.0
-sd = bpy.data.lights.new('s', 'SUN'); sd.energy = 5.5; sd.angle = math.radians(1.5); sd.use_shadow = not noshadow
+sd = bpy.data.lights.new('s', 'SUN'); sd.energy = 5.5; sd.angle = math.radians(1.5); sd.use_shadow = not noshadow; sd.cycles.cast_shadow = not noshadow
 so = bpy.data.objects.new('s', sd); sc.collection.objects.link(so)
 so.rotation_euler = (math.radians(90 - sun[1]), 0, math.radians(sun[0] + 90))
-fd = bpy.data.lights.new('f', 'SUN'); fd.energy = .8; fo = bpy.data.objects.new('f', fd); sc.collection.objects.link(fo)
+fd = bpy.data.lights.new('f', 'SUN'); fd.energy = .8; fd.cycles.cast_shadow = not noshadow; fo = bpy.data.objects.new('f', fd); sc.collection.objects.link(fo)
 fo.rotation_euler = (math.radians(75), 0, math.radians(sun[0] - 110))
 cd = bpy.data.cameras.new('c'); cd.lens = 55; cd.clip_start = .02; cd.clip_end = 1000
 cam = bpy.data.objects.new('c', cd); sc.collection.objects.link(cam); sc.camera = cam

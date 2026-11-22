@@ -5,6 +5,7 @@ import numpy as np
 from sl import *
 from greebles import *
 from gr_lander import *
+from gr_engine import engine, LANDER as ENGINE
 import ll as L
 
 out = sys.argv[sys.argv.index('--') + 1]
@@ -161,19 +162,18 @@ rail0 = on_cyl(0.001, .02, 2.5)
 for s in (-1, 1):
     det.add(box(.022, 1.16, .016, zone=Z.grey, bevel=.002, center=(s * .16, 0, .03)), rail0)
 
-# ---- underside: engine mounts and gimbal actuators
-eng_static = engine_static()
+# ---- underside: methalox descent engines (gr_engine.py). Each engine's frame turns its turbopump outboard;
+# the gimbal empties keep the part's axes.
+eng_mv, eng_st, eng_j = engine(ENGINE)
 engines = []
 for k in range(L.N_ENG):
     az = 22.5 + 45 * k
     a = math.radians(az)
     base = T(L.ENGINE_R * math.sin(a), -L.ENGINE_R * math.cos(a), L.DECK_BOT)
-    det.add(eng_static, base)
     gpt = base @ T(0, 0, -.13)
-    # two gimbal actuators from the mount ring down to the bell's mid point
-    det.add(actuator(base @ Vector((.22, 0, -.01)), gpt @ Vector((.08, 0, -.26))))
-    det.add(actuator(base @ Vector((0, .22, -.01)), gpt @ Vector((0, .08, -.26))))
-    engines.append((k, az, gpt))
+    ef = gpt @ Rz(az - 90)          # local +X radially out
+    det.add(eng_st, ef)
+    engines.append((k, az, gpt, ef))
 # centre hub cover and pipes to each engine
 det.add(cyl(.70, .04, 32, zone=Z.grey, center_z=False), T(0, 0, L.DECK_BOT - .04))
 det.add(bolt_ring(.64, 32, zone=Z.steel), Rx(180) @ T(0, 0, -L.DECK_BOT + .04))
@@ -183,11 +183,14 @@ det.add(cyl(.20, .08, 20, zone=Z.bare, bevel=.008, center_z=False), T(0, 0, L.DE
 for k in range(8):
     a = math.radians(22.5 + 45 * k)
     det.add(box(.09, .07, .05, zone=Z.grey, bevel=.006, center=(0, 0, 0)), T(.42 * math.sin(a), -.42 * math.cos(a), L.DECK_BOT - .07) @ Rz(22.5 + 45 * k))
-for k, az, gpt in engines:
+for k, az, gpt, ef in engines:
     a = math.radians(az)
-    pp = Vector((.60 * math.sin(a), -.60 * math.cos(a), L.DECK_BOT - .03))
-    q = Vector((L.ENGINE_R * .78 * math.sin(a), -L.ENGINE_R * .78 * math.cos(a), L.DECK_BOT - .05))
-    det.add(tube([pp, q, gpt.translation + Vector((-.04 * math.sin(a), .04 * math.cos(a), -.02))], .020, 8, zone=Z.copper))
+    t_ = Vector((math.cos(a), math.sin(a), 0))
+    for name, side in (('lox', 1), ('fuel', -1)):
+        pp = Vector((.60 * math.sin(a), -.60 * math.cos(a), L.DECK_BOT - .03)) + t_ * (.05 * side)
+        j = eng_j[name]
+        path = [pp, ef @ Vector((-.42, .10 * side, .10)), ef @ Vector((-.20, .11 * side, .075)), ef @ Vector((j.x, j.y, .03)), ef @ Vector((j.x, j.y, j.z + .014))]
+        det.add(tube(path, .016, 6, zone=Z.copper if name == 'fuel' else Z.bare, caps=False))
 
 # ---- objects
 o_wall = P.mesh('deck_wall', wall, M_deck, smooth_angle=40)
@@ -198,11 +201,11 @@ P.mesh('deck_boxes', deck_boxes, M_deck)
 P.mesh('details', det, M_det)
 
 # gimballed engines: each under its own 'gimbal' empty so ModuleGimbal finds all of them
-bell = engine_bell()
-for k, az, gpt in engines:
+M_eng = P.material('shab_engine', spec=(.9, .9, .9), shininess=.35)
+for k, az, gpt, ef in engines:
     g_ = P.empty('gimbal', gpt, P.model)
-    gg = Geo(); gg.add(bell, gpt)
-    P.mesh(f'bell{k}', gg, M_det, parent=g_, frame=gpt)
+    gg = Geo(); gg.add(eng_mv, ef)
+    P.mesh(f'bell{k}', gg, M_eng, parent=g_, frame=gpt, smooth_angle=50)
     # thrust transform at the nozzle exit plane, local +Z along the exhaust (-Z of the part)
     tf = frame_axes(gpt @ Vector((0, 0, -.82)), (0, 0, -1), x=(1, 0, 0))
     P.empty('thrustTransform', tf, g_)

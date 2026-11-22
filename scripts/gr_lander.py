@@ -121,52 +121,6 @@ def thruster_frame(frame, pos, direction):
     return frame_axes(p, d)
 
 
-def engine_static():
-    """Engine mount above the gimbal: local origin at the thrust plate, engine fires along -Z."""
-    g = Geo()
-    # thrust frame: four-legged cone
-    for a in (45, 135, 225, 315):
-        ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
-        g.add(tube([(.24 * ca, .24 * sa, 0), (.05 * ca, .05 * sa, -.13)], .014, 6, zone=Z.white))
-    g.add(cyl(.28, .012, 16, zone=Z.grey, center_z=False), T(0, 0, -.012))
-    return g
-
-
-def engine_bell():
-    """Gimballed section: chamber, pump, bell. Origin at the gimbal point, -Z toward the exit."""
-    g = Geo()
-    g.add(cyl(.05, .05, 12, zone=Z.steel, center_z=False), T(0, 0, -.03))
-    # injector dome + chamber
-    g.add(lathe([(0, -.17), (.095, -.17), (.11, -.12), (.10, -.05), (.05, -.03), (0, -.03)], 16, zone=Z.bare))
-    # outer bell regen ribs
-    outer = [(.075, -.21), (.062, -.235), (.08, -.30), (.13, -.42), (.195, -.60), (.245, -.74), (.27, -.82)]
-    outer = outer[::-1]
-    g.add(lathe(outer, 32, zone=Z.nozzle))
-    # exit lip + inner
-    inner = [(.262, -.82), (.238, -.74), (.187, -.60), (.122, -.42), (.072, -.30), (.052, -.235), (.0, -.20)]
-    g.add(lathe(inner, 32, zone=Z.nozzle_in, flip=True))
-    g.add(lathe([(.262, -.82), (.283, -.822)], 32, zone=Z.steel))
-    # ring-manifold band and throat fold
-    g.add(lathe([(.075, -.21), (.09, -.21), (.09, -.18), (.11, -.17)][::-1], 24, zone=Z.copper))
-    g.add(lathe([(.283, -.822), (.283, -.785), (.268, -.78)][::1], 32, zone=Z.steel))
-    # turbopump and lines on opposite sides of the chamber
-    g.add(tube([(.13, 0, -.06), (.13, 0, -.21)], .045, 10, zone=Z.bare))
-    g.add(cyl(.05, .03, 10, zone=Z.steel), T(.13, 0, -.06))
-    g.add(tube([(-.14, .02, -.05), (-.14, .02, -.20)], .035, 10, zone=Z.bare))
-    g.add(tube([(.13, 0, -.21), (.10, .06, -.30), (.085, .08, -.33)], .012, 6, zone=Z.copper))
-    g.add(tube([(-.14, .02, -.20), (-.10, -.05, -.30), (-.085, -.07, -.33)], .012, 6, zone=Z.copper))
-    return g
-
-
-def actuator(p0, p1):
-    g = Geo()
-    a, b = Vector(p0), Vector(p1)
-    m = a.lerp(b, .55)
-    g.add(tube([a, m], .018, 8, zone=Z.white))
-    g.add(tube([m, b], .010, 6, zone=Z.steel))
-    return g
-
-
 def phased_array(w=.30, h=.22):
     g = Geo()
     g.add(box(w, h, .03, zone=Z.white, bevel=.004, center=(0, 0, .015)))

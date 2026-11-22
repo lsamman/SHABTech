@@ -26,6 +26,7 @@ def tex(name):
         print('NOTEX', name); return None
     if p not in imgs:
         imgs[p] = bpy.data.images.load(p)
+        imgs[p].alpha_mode = 'CHANNEL_PACKED'
     return imgs[p]
 def nimage(im):
     import numpy as np

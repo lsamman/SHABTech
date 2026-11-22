@@ -5,6 +5,7 @@ import numpy as np
 from sl import *
 from greebles import *
 from gr_power import *
+from gr_engine import engine, SM as ENGINE
 import sm_layout as L
 
 out = sys.argv[sys.argv.index('--') + 1]
@@ -81,8 +82,11 @@ det = Geo()
 wall = lathe([(L.R_WALL, L.Z_DECK), (L.R_WALL, L.Z_BOT + .004), (L.R_WALL + .016, L.Z_BOT)], L.NF, A0, A1, zone=Z.mli_black)
 det.add(wall)
 
-# thrust cone and spokes
-det.add(lathe([(.30, L.Z_DECK - .001), (.25, L.Z_DECK - .03), (.14, L.Z_DECK - .10), (.11, L.Z_DECK - .105), (0, L.Z_DECK - .105)], 24, zone=Z.grey))
+# thrust structure (the engine's own cone, see the main engine below) and spokes
+ENG_Z = L.Z_DECK - .105          # gimbal pivot
+eng_mv, eng_st, eng_j = engine(ENGINE)
+EF = T(0, 0, ENG_Z)              # engine frame: turbopump toward +X
+det.add(eng_st, EF)
 for az_ in (0, 90, 180, 270):
     a = math.radians(az_)
     d = Vector((math.sin(a), -math.cos(a), 0))
@@ -105,12 +109,12 @@ for i, az_ in enumerate(tank_azs):
     pole = c + Vector((0, 0, -TANK_R))
     det.add(lathe([(.034, 0.016), (.034, -.012), (.018, -.02), (0, -.02)], 12, zone=Z.steel), T(*pole))
     # feed line from the tank pole in to the engine valves
-    inlet = vert(az_ + 20, .13) + Vector((0, 0, L.Z_DECK - .10))
+    inlet = vert(az_ + 20, .13) + Vector((0, 0, L.Z_DECK - .014))
     mid1 = pole + Vector((0, 0, -.018))
     mid2 = vert(az_ + 8, .30) + Vector((0, 0, pole.z - .02))
-    det.add(pipe_run([mid1, mid2, vert(az_ + 18, .17) + Vector((0, 0, L.Z_DECK - .12)), inlet], r=.0095, zone=Z.copper if i % 2 else Z.steel))
+    det.add(pipe_run([mid1, mid2, vert(az_ + 18, .17) + Vector((0, 0, L.Z_DECK - .05)), inlet], r=.0095, zone=Z.copper if i % 2 else Z.steel))
     # isolation valve on the run
-    vpos = mid2 + (vert(az_ + 18, .17) + Vector((0, 0, L.Z_DECK - .12)) - mid2) * .5
+    vpos = mid2 + (vert(az_ + 18, .17) + Vector((0, 0, L.Z_DECK - .05)) - mid2) * .5
     det.add(box(.04, .03, .03, zone=Z.access, bevel=.004, center=tuple(vpos)))
 
 # helium COPVs between the tanks, with regulator stacks and pressurant lines
@@ -201,28 +205,18 @@ for az_ in (45, 135, 225, 315):
         P.empty('RCSthruster', frame_y(world_o + world_d * .02, world_d), thr)
 
 # ------------------------------------------------------------- main engine
-ENG_Z = L.Z_DECK - .105          # throat plane, hangs from the thrust cone
+# methalox engine family (gr_engine.py), the lander's descent engine at 0.4 with a short nozzle
 gim = P.empty('engine_gimbal', T(0, 0, ENG_Z), P.model)
-eng = Geo()
-# bell points -Z; nozzle() builds it toward +Z, so flip it
-LEN = .133
-RX = .118
-bell = nozzle(RX, LEN, r_throat=.04, seg=32)
-flip = T(0, 0, ENG_Z - .015) @ Rx(180)
-eng.add(bell, flip)
-# injector head, valve packs, gimbal ring, regen tubes band
-eng.add(lathe([(.095, 0.0), (.095, -.012), (.075, -.018), (.05, -.022)], 20, zone=Z.steel), T(0, 0, ENG_Z))
-eng.add(lathe([(.058, .004), (.058, -.016)], 20, zone=Z.bare), T(0, 0, ENG_Z))
-for az_, d in ((65, .06), (245, .06)):
-    a = vert(az_, .075)
-    eng.add(box(.036, .036, .035, zone=Z.access, bevel=.004, center=(a.x, a.y, ENG_Z - .006)))
-for i in range(3):
-    zb = ENG_Z - .05 - i * .04
-    r_ = .04 + (RX - .04) * ((zb - (ENG_Z - .015)) / -LEN) ** .62
-    eng.add(tube([(r_ + .002, 0, 0), (r_ + .002, 0, 0)], .001, 3, zone=Z.steel)) if False else None
-    eng.add(lathe([(r_ + .002, zb - .005), (r_ + .006, zb), (r_ + .002, zb + .005)], 28, zone=Z.steel))
-P.mesh('engine', eng, M_det, parent=gim, frame=T(0, 0, ENG_Z), smooth_angle=50)
-P.empty('thrustTransform', frame_axes((0, 0, ENG_Z - .015 - LEN + .01), z=(0, 0, -1), x=(1, 0, 0)), gim)
+M_eng = P.material('shab_engine', spec=(.9, .9, .9), shininess=.35)
+eng = Geo(); eng.add(eng_mv, EF)
+P.mesh('engine', eng, M_eng, parent=gim, frame=T(0, 0, ENG_Z), smooth_angle=50)
+# exit plane .148 below the pivot; the thrust transform sits just inside it, where it always has
+P.empty('thrustTransform', frame_axes((0, 0, ENG_Z - .138), z=(0, 0, -1), x=(1, 0, 0)), gim)
+# feeds through the thrust cone to the engine's flex joints
+for name in ('lox', 'fuel'):
+    j = eng_j[name]
+    det.add(tube([EF @ Vector((j.x * 2.6, j.y * 1.6, .100)), EF @ Vector((j.x, j.y, j.z + .02)), EF @ Vector((j.x, j.y, j.z + .006))], .0075, 6,
+                 zone=Z.copper if name == 'fuel' else Z.steel, caps=False))
 
 # ------------------------------------------------------------- objects
 P.mesh('blanket', blanket, M_sm, smooth_angle=60)
